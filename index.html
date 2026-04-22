@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小人與馬卡龍氣球</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* 隱藏滾動條以達成全螢幕 */
+            background-color: #0b0b2a; /* 預設深藍色 */
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        /* iframe 彈出視窗樣式 */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 4%;
+            right: 2%;
+            width: 60%;
+            height: 92%;
+            background-color: #fff;
+            border-radius: 12px; /* 加入圓角 */
+            overflow: hidden; /* 防止 iframe 內容超出圓角邊界 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6); /* 增強四周擴散的浮動陰影 */
+            z-index: 1000;
+            animation: slideIn 0.4s cubic-bezier(0.1, 0.8, 0.2, 1); /* 讓滑入動畫更柔和自然 */
+        }
+        @keyframes slideIn {
+            from { transform: translateX(120%); } /* 確保起點完全在畫面外 */
+            to { transform: translateX(0); }
+        }
+        .modal.closing {
+            animation: slideOut 0.4s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+        }
+        @keyframes slideOut {
+            from { transform: translateX(0); }
+            to { transform: translateX(120%); }
+        }
+        .close-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            font-size: 20px;
+            font-family: sans-serif;
+            color: #333;
+            cursor: pointer;
+            z-index: 1001;
+            background: #eee;
+            border-radius: 50%;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            transition: background 0.2s;
+        }
+        .close-btn:hover {
+            background: #ddd;
+        }
+        #contentFrame {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="sceneCanvas"></canvas>
+
+<!-- 彈出用的 iframe 視窗 -->
+<div id="iframeModal" class="modal">
+    <div class="close-btn" id="closeModal">✖</div>
+    <!-- 這裡的 src 可以替換成你想要的網址 -->
+    <iframe id="contentFrame" src="about:blank"></iframe>
+</div>
+
+<script>
+    const canvas = document.getElementById('sceneCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let cw, ch;
+    const PIXEL_SCALE = 6; // 將倍率調大，讓整體的像素圖樣放大
+
+    // 確保 Canvas 始終為全螢幕
+    function resize() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        cw = window.innerWidth / PIXEL_SCALE;
+        ch = window.innerHeight / PIXEL_SCALE;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // 背景星星資料
+    const stars = [];
+    for (let i = 0; i < 50; i++) {
+        stars.push({
+            x: Math.random(),
+            y: Math.random() * 0.6, // 星星集中在畫面上半部
+            speed: 0.002 + Math.random() * 0.003
+        });
+    }
+
+    // 像素雲朵資料
+    const clouds = [];
+    const cloudShapes = [
+        [ {dx: 4, dy: 0, w: 12, h: 3}, {dx: 0, dy: 3, w: 20, h: 4}, {dx: 2, dy: 7, w: 14, h: 2} ],
+        [ {dx: 6, dy: 0, w: 14, h: 4}, {dx: 0, dy: 4, w: 26, h: 5}, {dx: 4, dy: 9, w: 16, h: 2} ]
+    ];
+    for (let i = 0; i < 4; i++) {
+        clouds.push({
+            x: Math.random() * cw, // 隨機水平起始位置
+            y: Math.random() * (ch * 0.4), // 集中在天空上半部
+            speed: 0.015 + Math.random() * 0.02, // 緩慢移動的速度
+            shape: cloudShapes[Math.floor(Math.random() * cloudShapes.length)],
+            opacity: 0.08 + Math.random() * 0.1 // 夜空中的雲帶有半透明的暗沉感
+        });
+    }
+
+    // 流星資料
+    const meteors = [];
+    let mouseX = -1000;
+    let mouseY = -1000;
+
+    window.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        if (Math.random() > 0.6) { // 控制流星生成的頻率，避免畫面過於混亂
+            meteors.push({
+                x: (e.clientX / PIXEL_SCALE) + (Math.random() * 4 - 2), // 緊貼滑鼠 X 座標位置生成
+                y: (e.clientY / PIXEL_SCALE) + (Math.random() * 4 - 2), // 緊貼滑鼠 Y 座標位置生成
+                vx: 1 + Math.random(), // 向右下方墜落
+                vy: 1 + Math.random() * 1.5,
+                life: 1.0,
+                decay: 0.015 + Math.random() * 0.02
+            });
+        }
+    });
+
+    // 氣球資料 (自訂色系 - 降低明度與彩度)
+    const customColors = [
+        '#204950', '#586878', '#526b55', '#8e8496', '#b09c9c'
+    ];
+    const balloons = [];
+    for (let i = 0; i < 60; i++) { // 增加數量至 60 顆
+        balloons.push({
+            color: customColors[Math.floor(Math.random() * customColors.length)],
+            xOffset: (Math.random() * 100) - 20,  // 擴大水平分佈範圍減少重疊
+            yOffset: -(20 + Math.random() * 90), // 擴大垂直高度範圍，讓層次更分明
+            size: 4 + Math.random() * 3.5,       // 稍微調整大小範圍，讓大小差異更自然
+            phase: Math.random() * Math.PI * 2,  // 搖擺初始相位
+            speed: 0.001 + Math.random() * 0.0015 // 搖擺速度
+        });
+    }
+
+    // 將氣球依據高度排序 (yOffset 越小代表越高)，並把最高的 10 顆氣球強制往下移
+    balloons.sort((a, b) => a.yOffset - b.yOffset);
+    for (let i = 0; i < 10; i++) {
+        balloons[i].yOffset += 30 + Math.random() * 20; // 隨機往下移動 30~50 的距離
+    }
+
+    // 隨機選擇 10 顆不重疊的氣球並加上外框標記
+    const outlinedBalloons = [];
+    // 產生一個打亂順序的索引陣列，用來達到隨機挑選的效果
+    const shuffledIndices = balloons.map((_, i) => i).sort(() => Math.random() - 0.5);
+    
+    for (let i of shuffledIndices) {
+        if (outlinedBalloons.length >= 10) break; // 確保只選 10 顆就停止
+        
+        let candidate = balloons[i];
+        let originalSize = candidate.size;
+        candidate.size = 7 + Math.random() * 3; // 讓有白框的氣球明顯變大顆
+
+        let isOverlapping = false;
+        for (let selected of outlinedBalloons) {
+            let dist = Math.hypot(candidate.xOffset - selected.xOffset, candidate.yOffset - selected.yOffset);
+            if (dist < candidate.size + selected.size + 3) { // 將安全間距縮小為 3，確保空間絕對足夠選滿 10 顆
+                isOverlapping = true;
+                break;
+            }
+        }
+        if (!isOverlapping) {
+            candidate.hasOutline = true;
+            outlinedBalloons.push(candidate);
+        } else {
+            candidate.size = originalSize; // 如果重疊了就恢復原本大小並放棄標記
+        }
+    }
+    // 將有外框的氣球移到陣列最後面，確保它們在最表層繪製不被遮擋
+    balloons.sort((a, b) => (a.hasOutline === b.hasOutline) ? 0 : a.hasOutline ? 1 : -1);
+
+    // 依據從左至右、從上往下排序有外框的氣球，並賦予指定文字
+    const labels = ["20260224", "20260303", "20260303_2", "20260310", "20260310_2", "20260317", "20260324", "20260407", "20260409", "20260421"];
+    outlinedBalloons.sort((a, b) => {
+        let xDiff = a.xOffset - b.xOffset;
+        // 如果兩顆氣球在 X 軸位置相當接近 (視為同一排)，則比較 Y 軸(從上往下)
+        if (Math.abs(xDiff) < 15) {
+            return a.yOffset - b.yOffset;
+        }
+        // 否則優先以 X 軸(從左至右)排序
+        return xDiff;
+    });
+    outlinedBalloons.forEach((b, index) => {
+        b.label = labels[index];
+    });
+
+    // 處理點擊氣球與彈出視窗的邏輯
+    let activePoppedBalloon = null;
+    const particles = []; // 儲存氣球破掉的粒子特效
+
+    // 關閉視窗的共用邏輯 (加入滑出動畫)
+    function closeIframeModal() {
+        const modal = document.getElementById('iframeModal');
+        if (modal.classList.contains('closing')) return; // 避免重複觸發
+        modal.classList.add('closing');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.classList.remove('closing');
+            if (activePoppedBalloon) {
+                activePoppedBalloon.isPopped = false; // 恢復氣球
+                activePoppedBalloon = null;
+            }
+        }, 380); // 等待動畫快結束時隱藏
+    }
+
+    canvas.addEventListener('click', (e) => {
+        // 如果視窗正在播放關閉動畫中，暫時不處理點擊事件
+        if (document.getElementById('iframeModal').classList.contains('closing')) return;
+
+        const mx = e.clientX / PIXEL_SCALE;
+        const my = e.clientY / PIXEL_SCALE;
+        
+        let clickedBalloon = null;
+
+        // 從最上層(陣列後方)開始檢查點擊
+        for (let i = balloons.length - 1; i >= 0; i--) {
+            let b = balloons[i];
+            if (b.hasOutline && !b.isPopped) {
+                let dist = Math.hypot(mx - b.currentX, my - b.currentY);
+                if (dist <= b.size) {
+                    clickedBalloon = b;
+                    break; 
+                }
+            }
+        }
+
+        if (clickedBalloon) {
+            if (activePoppedBalloon) {
+                // 如果視窗已經開著，先將前一顆破掉的氣球恢復原狀
+                activePoppedBalloon.isPopped = false;
+            } else {
+                // 否則顯示視窗 (滑入動畫)
+                document.getElementById('iframeModal').style.display = 'block';
+            }
+
+            // 讓新點擊的氣球破掉
+            clickedBalloon.isPopped = true;
+            activePoppedBalloon = clickedBalloon;
+            
+            // 產生新氣球破掉的粒子碎片
+            for (let p = 0; p < 15; p++) {
+                let angle = Math.random() * Math.PI * 2; // 360 度隨機噴射
+                let speed = Math.random() * 2 + 1; // 隨機初速
+                particles.push({
+                    x: clickedBalloon.currentX,
+                    y: clickedBalloon.currentY,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1.0, // 生命週期 (透明度)
+                    decay: Math.random() * 0.04 + 0.02, // 消失速度
+                    color: clickedBalloon.color // 碎片繼承原本氣球的顏色
+                });
+            }
+
+            // 動態將 iframe 的 src 指向對應標籤的資料夾內容，無需重新開啟視窗
+            document.getElementById('contentFrame').src = './' + clickedBalloon.label + '/index.html';
+            
+        } else {
+            // 點擊的不是氣球 (點擊空白處)，且視窗是開啟狀態時，才執行關閉
+            if (activePoppedBalloon) {
+                closeIframeModal();
+            }
+        }
+    });
+
+    // 動畫渲染主迴圈
+    function draw(time) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); // 清除高解析度的畫布
+        
+        ctx.save();
+        ctx.scale(PIXEL_SCALE, PIXEL_SCALE); // 放大座標系，讓 fillRect 畫出大方塊的像素感
+
+        // 1. 繪製像素風背景 (傍晚的復古漸層天空)
+        const skyColors = ['#0b0b2a', '#1c1c3c', '#3a2040', '#603050', '#8c405a'];
+        const bandHeight = Math.ceil(ch / skyColors.length);
+        skyColors.forEach((color, i) => {
+            ctx.fillStyle = color;
+            ctx.fillRect(0, i * bandHeight, cw, bandHeight);
+        });
+
+        // 2. 繪製閃爍星星
+        stars.forEach(s => {
+            ctx.fillStyle = Math.sin(time * s.speed) > 0 ? '#ffffff' : '#555577';
+            ctx.fillRect(Math.floor(s.x * cw), Math.floor(s.y * ch), 1, 1);
+        });
+
+        // 2.5 繪製彎月 (像素風)
+        const moonX = cw * 0.85;
+        const moonY = ch * 0.18;
+        const moonR = 7;
+        ctx.fillStyle = '#FFF6D9'; // 柔和的月黃色
+        for (let dy = -moonR; dy <= moonR; dy++) {
+            for (let dx = -moonR; dx <= moonR; dx++) {
+                let dist1 = dx * dx + dy * dy; // 原圓心距離平方
+                let dist2 = (dx - 2.5) * (dx - 2.5) + (dy + 1.5) * (dy + 1.5); // 偏移圓心距離平方 (用來挖空)
+                // 如果像素落在原圓內，且在偏移圓外，就會形成彎月的輪廓
+                if (dist1 <= moonR * moonR && dist2 > (moonR - 2) * (moonR - 2)) {
+                    ctx.fillRect(Math.floor(moonX + dx), Math.floor(moonY + dy), 1, 1);
+                }
+            }
+        }
+
+        // 2.8 繪製像素雲朵
+        clouds.forEach(c => {
+            c.x += c.speed;
+            // 如果雲朵飄出右側畫面，讓它從左側重新出現
+            if (c.x > cw) {
+                c.x = -30;
+                c.y = Math.random() * (ch * 0.4);
+            }
+            ctx.fillStyle = `rgba(200, 200, 220, ${c.opacity})`;
+            c.shape.forEach(block => {
+                ctx.fillRect(Math.floor(c.x + block.dx), Math.floor(c.y + block.dy), block.w, block.h);
+            });
+        });
+
+        // 3. 繪製滑鼠觸發的流星
+        for (let i = meteors.length - 1; i >= 0; i--) {
+            let m = meteors[i];
+            m.x += m.vx;
+            m.y += m.vy;
+            m.life -= m.decay;
+
+            if (m.life <= 0) {
+                meteors.splice(i, 1);
+            } else {
+                ctx.fillStyle = `rgba(255, 240, 220, ${m.life})`; // 流星本體
+                ctx.fillRect(Math.floor(m.x), Math.floor(m.y), 1, 1);
+                ctx.fillStyle = `rgba(200, 160, 180, ${m.life * 0.5})`; // 流星尾巴 (製造軌跡感)
+                ctx.fillRect(Math.floor(m.x - m.vx), Math.floor(m.y - m.vy), 1, 1);
+            }
+        }
+
+        const groundY = ch * 0.75; // 上移地面高度
+
+        // 4. 繪製遠景雲霄飛車軌道 (先畫，讓它在地面後方)
+        // 統一定義軌道起伏的數學函式
+        const getTrackY = (px) => groundY - 35 + Math.sin(px * 0.06) * 15 - Math.cos(px * 0.03) * 8;
+
+        ctx.fillStyle = '#221122';
+        for (let x = 0; x < cw; x += 15) {
+            let ty = getTrackY(x);
+            ctx.fillRect(x, Math.floor(ty), 2, groundY + 5 - Math.floor(ty)); // 支柱
+        }
+        for (let x = 0; x < cw; x++) {
+            let y = getTrackY(x);
+            ctx.fillRect(Math.floor(x), Math.floor(y), 2, 2); // 軌道
+        }
+
+        // 繪製雲霄飛車的移動小車廂
+        const carX = (time * 0.04) % (cw + 20) - 10; // 利用時間讓車子向右跑，並製造邊界循環
+        const carY = getTrackY(carX);
+        
+        ctx.fillStyle = '#59385c'; // 改為深紫紅色以融入夜色
+        ctx.fillRect(Math.floor(carX) - 3, Math.floor(carY) - 4, 6, 3);
+        ctx.fillStyle = '#dca27e'; // 車窗透出的暖色光芒
+        ctx.fillRect(Math.floor(carX) - 2, Math.floor(carY) - 3, 1, 1);
+        ctx.fillRect(Math.floor(carX) + 1, Math.floor(carY) - 3, 1, 1);
+        ctx.fillStyle = '#1c1c3c'; // 深色車輪
+        ctx.fillRect(Math.floor(carX) - 2, Math.floor(carY) - 1, 2, 1);
+        ctx.fillRect(Math.floor(carX) + 1, Math.floor(carY) - 1, 2, 1);
+
+        // 5. 繪製地面 (覆蓋在雲霄飛車的支柱底部前)
+        ctx.fillStyle = '#1a1025';
+        ctx.fillRect(0, groundY, cw, ch - groundY);
+        
+        // 地面上的步道/圍欄裝飾
+        ctx.fillStyle = '#2d1b3d';
+        for (let x = 0; x < cw; x += 10) {
+            ctx.fillRect(x, groundY + 4, 5, 2);
+        }
+
+        // 6. 繪製地面的路燈與溫暖光暈
+        for (let x = 15; x < cw; x += 50) {
+            // 燈柱
+            ctx.fillStyle = '#110b19';
+            ctx.fillRect(x, groundY - 6, 1, 10);
+            // 燈泡核心 (發光的橘黃與純白點綴)
+            ctx.fillStyle = '#f4b271';
+            ctx.fillRect(x - 1, groundY - 7, 3, 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x, groundY - 7, 1, 1);
+            // 地面上的漸層照明光暈，讓地面不再死黑
+            ctx.fillStyle = 'rgba(244, 178, 113, 0.15)';
+            ctx.fillRect(x - 12, groundY, 25, 3);
+            ctx.fillRect(x - 8, groundY + 3, 17, 2);
+            ctx.fillRect(x - 4, groundY + 5, 9, 2);
+        }
+
+        const lampX = 15;
+        const pX = lampX + 3; // 坐在路燈右側
+        const handX = pX + 2; // 小人手部的位置
+        const handY = groundY - 4;
+
+        // 7. 繪製氣球與繩子 (先畫，讓氣球跟繩子在小人的圖層後方)
+        const globalSwayAngle = Math.sin(time * 0.0005) * 0.05; // 大幅縮小全域風的搖擺角度
+        const globalBend = Math.sin(time * 0.0005) * 5; // 同步縮小繩子的彎曲程度
+
+        let isHoveringAny = false;
+
+        balloons.forEach((b) => {
+            if (b.isPopped) return; // 如果氣球破掉了，就不畫它跟繩子
+
+            // 算出這顆氣球與手部的基本距離(繩長)與角度
+            let length = Math.hypot(b.xOffset, b.yOffset);
+            let baseAngle = Math.atan2(b.yOffset, b.xOffset);
+            
+            // 結合全域風與各自的搖擺頻率，算出當下的偏轉角度 (鐘擺物理)
+            let swayAngle = globalSwayAngle + Math.sin(time * b.speed + b.phase) * 0.02; // 縮小個別氣球的擺動幅度
+            let currentAngle = baseAngle + swayAngle;
+
+            // 利用三角函數算出自然牽引下的新座標
+            let bx = handX + Math.cos(currentAngle) * length;
+            let by = handY + Math.sin(currentAngle) * length;
+
+            // 邊界防護：如果碰到左側邊框，讓氣球「貼著牆壁滑動」並保持繩子長度緊繃 (畢氏定理)
+            if (bx < b.size + 2) {
+                bx = b.size + 2;
+                let dx = bx - handX;
+                if (length * length > dx * dx) {
+                    by = handY - Math.sqrt(length * length - dx * dx);
+                }
+            }
+            // 限制 Y 軸不會超出上方邊框
+            if (by < b.size + 2) by = b.size + 2;
+
+            // 記錄當下算出來的 X, Y 座標，供滑鼠偵測使用
+            b.currentX = bx;
+            b.currentY = by;
+
+            // 畫繩子 (加上微微的貝茲曲線，呈現自然風吹的弧度)
+            ctx.strokeStyle = "rgba(150, 150, 150, 0.6)"; // 改為灰色繩子
+            ctx.lineWidth = 0.5;
+            ctx.beginPath();
+            ctx.moveTo(handX, handY);
+            
+            // 繩子控制點：隨著風向與繩長產生自然的微彎張力
+            let bendOffset = (globalBend + Math.sin(time * b.speed + b.phase) * 2) * (length / 100);
+            const cpX = handX + (bx - handX) / 2 + bendOffset;
+            const cpY = handY + (by - handY) / 2;
+            
+            ctx.quadraticCurveTo(cpX, cpY, bx, by);
+            ctx.stroke();
+
+            // 畫氣球本體 (較大且為圓形)
+            ctx.fillStyle = b.color;
+            ctx.beginPath();
+            ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // 加入白色外框
+            if (b.hasOutline) {
+                let distToMouse = Math.hypot((mouseX / PIXEL_SCALE) - bx, (mouseY / PIXEL_SCALE) - by);
+                if (distToMouse <= b.size) {
+                    isHoveringAny = true;
+                    // 滑鼠在上方時疊加一層白色半透明，讓顏色變淺
+                    ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+                    ctx.beginPath();
+                    ctx.arc(bx, by, b.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.strokeStyle = "#FFFFFF";
+                ctx.lineWidth = 0.3; // 把白框改細
+                ctx.stroke();
+
+                // 在氣球內部畫上像素風的文字
+                ctx.fillStyle = "#FFFFFF";
+                ctx.font = 'bold 3px monospace'; // 使用等寬字體製造微像素感
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                
+                // 將長字串拆兩行顯示，以符合氣球的圓形範圍
+                let part1 = b.label.substring(0, 4); // "2026"
+                let part2 = b.label.substring(4);    // "0303_2" 等
+                ctx.fillText(part1, bx, by - 1.5, b.size * 1.6);
+                ctx.fillText(part2, bx, by + 1.5, b.size * 1.6);
+            }
+
+            // 氣球上的微小反光亮點 (弧形點綴增加立體感)
+            ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+            ctx.beginPath();
+            ctx.arc(bx - b.size * 0.3, by - b.size * 0.3, b.size * 0.25, 0, Math.PI * 2);
+            ctx.fill();
+        });
+
+        // 如果滑鼠停留在可點擊氣球上，切換游標為手指
+        canvas.style.cursor = isHoveringAny ? 'pointer' : 'default';
+
+        // 7.8 繪製氣球破掉的粒子特效
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx;
+            p.y += p.vy;
+            p.vy += 0.08; // 加入微小的重力，讓碎片呈現拋物線墜落
+            p.life -= p.decay;
+
+            if (p.life <= 0) {
+                particles.splice(i, 1);
+            } else {
+                ctx.globalAlpha = p.life; // 根據生命週期設定透明度
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0; // 恢復透明度，以免影響後續的畫布渲染
+            }
+        }
+
+        // 7.5 繪製坐在最左邊路燈下方地面的小人 (後畫，將小人蓋在繩子前面)
+        ctx.fillStyle = '#110b19'; // 使用深色剪影
+        // 頭部 (微微仰望)
+        ctx.fillRect(pX + 1, groundY - 9, 3, 3);
+        // 身體 (坐在地上)
+        ctx.fillRect(pX, groundY - 6, 3, 6);
+        // 雙腿 (向右伸直)
+        ctx.fillRect(pX + 3, groundY - 2, 3, 2);
+
+        // 8. 繪製摩天輪 (右側)
+        const fwX = cw * 0.75;
+        const fwY = groundY - 45;
+        const fwR = 35;
+        const numSpokes = 8;
+        
+        // 摩天輪支柱 (三角形底座)
+        ctx.fillStyle = '#331122';
+        for (let y = fwY; y < groundY + 12; y++) { // 向下延伸跨越地平線
+            let w = (y - fwY) * 0.5;
+            ctx.fillRect(Math.floor(fwX - w / 2), Math.floor(y), Math.floor(w), 1);
+        }
+
+        // 摩天輪旋轉計算與車廂
+        const angleOffset = time * 0.0005;
+        for (let i = 0; i < numSpokes; i++) {
+            let angle = angleOffset + (Math.PI * 2 / numSpokes) * i;
+            let endX = fwX + Math.cos(angle) * fwR;
+            let endY = fwY + Math.sin(angle) * fwR;
+            
+            // 用像素點繪製連接線 (自製陽春版 Bresenham 直線)
+            let dist = Math.max(Math.abs(endX - fwX), Math.abs(endY - fwY));
+            ctx.fillStyle = '#552233';
+            for (let j = 0; j <= dist; j += 1) {
+                let px = fwX + (endX - fwX) * (j / dist);
+                let py = fwY + (endY - fwY) * (j / dist);
+                ctx.fillRect(Math.floor(px), Math.floor(py), 1, 1);
+            }
+
+            // 遊樂園車廂
+            ctx.fillStyle = (i % 2 === 0) ? '#ffcc00' : '#ff3366';
+            ctx.fillRect(Math.floor(endX) - 3, Math.floor(endY) - 3, 6, 6);
+            ctx.fillStyle = '#ffffff'; // 窗戶
+            ctx.fillRect(Math.floor(endX) - 1, Math.floor(endY) - 1, 2, 2);
+        }
+
+        // 摩天輪外圈
+        ctx.fillStyle = '#552233';
+        for (let a = 0; a < Math.PI * 2; a += 0.05) {
+            let px = fwX + Math.cos(a) * fwR;
+            let py = fwY + Math.sin(a) * fwR;
+            ctx.fillRect(Math.floor(px), Math.floor(py), 2, 2);
+        }
+
+        // 9. 繪製馬戲團帳篷 (向右靠，並且往下跨越地平線)
+        const tentX = Math.floor(cw * 0.42); // 往右移靠近摩天輪
+        const tentY = Math.floor(groundY - 6); // 稍微往下移讓帳篷蓋在地面上
+
+        // 帳篷頂端的飄動小旗子
+        ctx.fillStyle = '#110b19'; // 旗桿
+        ctx.fillRect(tentX, tentY - 28, 1, 8);
+        ctx.fillStyle = '#c58940'; // 改為柔和的復古金色
+        for (let fx = 1; fx <= 6; fx++) {
+            let flagYOffset = Math.sin(time * 0.005 - fx * 0.8) * 1.5; // 產生波浪飄動效果
+            ctx.fillRect(tentX + fx, Math.floor(tentY - 28 + flagYOffset), 1, 3);
+        }
+
+        // 帳篷屋頂
+        for (let y = 0; y < 20; y++) {
+            let w = Math.floor((y / 19) * 34); // 讓寬度平滑遞增至最大 34
+            if (w % 2 !== 0) w++; // 強制偶數以確保完美置中對稱
+            ctx.fillStyle = (Math.floor(y / 4) % 2 === 0) ? '#c58940' : '#803241'; // 改為柔和的復古色調
+            ctx.fillRect(tentX - w / 2, tentY - 20 + y, w, 1);
+        }
+
+        // 帳篷主體 (總寬 30，分成 5 個區塊，每個寬 6)
+        for (let i = 0; i < 5; i++) {
+            ctx.fillStyle = (i % 2 === 0) ? '#d3bda8' : '#803241'; // 使用陳舊感的米色與深酒紅色
+            ctx.fillRect(tentX - 15 + i * 6, tentY, 6, 18);
+        }
+
+        // 帳篷入口
+        ctx.fillStyle = '#110b19';
+        ctx.fillRect(tentX - 4, tentY + 8, 8, 10);
+
+        ctx.restore();
+
+        // 循環呼叫繪圖
+        requestAnimationFrame(draw);
+    }
+
+    // 啟動動畫
+    requestAnimationFrame(draw);
+
+    // 關閉視窗的邏輯
+    document.getElementById('closeModal').addEventListener('click', closeIframeModal);
+
+</script>
+</body>
+</html>
