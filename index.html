@@ -758,6 +758,19 @@
             ctx.fillText(tooltipText, tX + 8, tY - 1);
         }
 
+        // 11. 繪製底部滾動版權文字 (跑馬燈效果)
+        ctx.font = '14px sans-serif';
+        const copyrightText = "414730233 林子靖";
+        const cpWidth = ctx.measureText(copyrightText).width;
+        const scrollSpeed = 0.06; // 跑馬燈捲動速度 (數字越大越快)
+        const totalScrollDistance = canvas.width + cpWidth;
+        const currentScrollX = canvas.width - ((time * scrollSpeed) % totalScrollDistance);
+        
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.5)'; // 使用半透明白色，融入夜色不刺眼
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(copyrightText, currentScrollX, canvas.height - 10); // 畫在距離底部 10px 的位置
+
         // 循環呼叫繪圖
         requestAnimationFrame(draw);
     }
