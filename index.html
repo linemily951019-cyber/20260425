@@ -234,8 +234,7 @@
     });
 
     // 處理點擊氣球與彈出視窗的邏輯
-    let activePoppedBalloon = null;
-    const particles = []; // 儲存氣球破掉的粒子特效
+    let activeBalloon = null; // 紀錄當下被選取的氣球
 
     // 關閉視窗的共用邏輯 (加入滑出動畫)
     function closeIframeModal() {
@@ -245,9 +244,8 @@
         setTimeout(() => {
             modal.style.display = 'none';
             modal.classList.remove('closing');
-            if (activePoppedBalloon) {
-                activePoppedBalloon.isPopped = false; // 恢復氣球
-                activePoppedBalloon = null;
+            if (activeBalloon) {
+                activeBalloon = null; // 清除選取狀態
             }
             
             // 清空 iframe 的 src，藉此停止內部的聲音與影片播放
@@ -267,7 +265,7 @@
         // 從最上層(陣列後方)開始檢查點擊
         for (let i = balloons.length - 1; i >= 0; i--) {
             let b = balloons[i];
-            if (b.hasOutline && !b.isPopped) {
+            if (b.hasOutline) {
                 let dist = Math.hypot(mx - b.currentX, my - b.currentY);
                 if (dist <= b.size) {
                     clickedBalloon = b;
@@ -277,39 +275,20 @@
         }
 
         if (clickedBalloon) {
-            if (activePoppedBalloon) {
-                // 如果視窗已經開著，先將前一顆破掉的氣球恢復原狀
-                activePoppedBalloon.isPopped = false;
-            } else {
-                // 否則顯示視窗 (滑入動畫)
+            if (!activeBalloon) {
+                // 視窗未開啟時，顯示視窗 (滑入動畫)
                 document.getElementById('iframeModal').style.display = 'block';
             }
 
-            // 讓新點擊的氣球破掉
-            clickedBalloon.isPopped = true;
-            activePoppedBalloon = clickedBalloon;
-            
-            // 產生新氣球破掉的粒子碎片
-            for (let p = 0; p < 15; p++) {
-                let angle = Math.random() * Math.PI * 2; // 360 度隨機噴射
-                let speed = Math.random() * 2 + 1; // 隨機初速
-                particles.push({
-                    x: clickedBalloon.currentX,
-                    y: clickedBalloon.currentY,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    life: 1.0, // 生命週期 (透明度)
-                    decay: Math.random() * 0.04 + 0.02, // 消失速度
-                    color: clickedBalloon.color // 碎片繼承原本氣球的顏色
-                });
-            }
+            // 將點擊的氣球設為活躍狀態
+            activeBalloon = clickedBalloon;
 
             // 動態將 iframe 的 src 指向對應標籤的資料夾內容，無需重新開啟視窗
             document.getElementById('contentFrame').src = './' + clickedBalloon.label + '/index.html';
             
         } else {
             // 點擊的不是氣球 (點擊空白處)，且視窗是開啟狀態時，才執行關閉
-            if (activePoppedBalloon) {
+            if (activeBalloon) {
                 closeIframeModal();
             }
         }
@@ -451,8 +430,6 @@
         let isHoveringAny = false;
 
         balloons.forEach((b) => {
-            if (b.isPopped) return; // 如果氣球破掉了，就不畫它跟繩子
-
             // 算出這顆氣球與手部的基本距離(繩長)與角度
             let length = Math.hypot(b.xOffset, b.yOffset);
             let baseAngle = Math.atan2(b.yOffset, b.xOffset);
@@ -511,9 +488,20 @@
                     ctx.arc(bx, by, b.size, 0, Math.PI * 2);
                     ctx.fill();
                 }
-                ctx.strokeStyle = "#FFFFFF";
-                ctx.lineWidth = 0.3; // 把白框改細
+                
+                // 繪製外框，如果是被點擊開啟的氣球，顯示金色呼吸發光效果
+                if (b === activeBalloon) {
+                    ctx.strokeStyle = "#FFD700"; 
+                    ctx.lineWidth = 0.8;
+                    ctx.shadowColor = "#FFD700";
+                    ctx.shadowBlur = 6 + Math.sin(time * 0.005) * 3;
+                } else {
+                    ctx.strokeStyle = "#FFFFFF";
+                    ctx.lineWidth = 0.3;
+                    ctx.shadowBlur = 0;
+                }
                 ctx.stroke();
+                ctx.shadowBlur = 0; // 重置陰影避免影響其他繪圖
 
                 // 若圖片已載入，則將縮圖畫在氣球內部並裁切成圓形
                 if (b.imgLoaded) {
@@ -556,26 +544,6 @@
 
         // 如果滑鼠停留在可點擊氣球上，切換游標為手指
         canvas.style.cursor = isHoveringAny ? 'pointer' : 'default';
-
-        // 7.8 繪製氣球破掉的粒子特效
-        for (let i = particles.length - 1; i >= 0; i--) {
-            let p = particles[i];
-            p.x += p.vx;
-            p.y += p.vy;
-            p.vy += 0.08; // 加入微小的重力，讓碎片呈現拋物線墜落
-            p.life -= p.decay;
-
-            if (p.life <= 0) {
-                particles.splice(i, 1);
-            } else {
-                ctx.globalAlpha = p.life; // 根據生命週期設定透明度
-                ctx.fillStyle = p.color;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, 1.2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0; // 恢復透明度，以免影響後續的畫布渲染
-            }
-        }
 
         // 7.5 繪製坐在最左邊路燈下方地面的小人 (後畫，將小人蓋在繩子前面)
         ctx.fillStyle = '#110b19'; // 使用深色剪影
