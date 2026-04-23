@@ -274,7 +274,7 @@
         2: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/BkTisRZnZl?view", text: "week 7 課堂筆記" },
         3: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/BJapeBv6Wl?view", text: "week 7 課後筆記" },
         4: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/SySVpSV6be?view", text: "week 9 課後筆記" },
-        5: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/ry5UFBLTZl?view", text: "期中作品筆記", color: '#4a90e2' } // 特殊藍色
+        5: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/ry5UFBLTZl?view", text: "期中作品筆記", color: '#4a5a7b' } // 加上復古藍色
     };
 
     // 處理點擊氣球與彈出視窗的邏輯
@@ -665,7 +665,7 @@
                 carData.x = endX; // 更新座標供點擊偵測
                 carData.y = endY;
 
-                let carColor = carData.color || '#ffcc00'; // 使用指定顏色或預設黃色
+                let carColor = carData.color || ((i % 2 === 0) ? '#ffcc00' : '#ff3366'); // 優先使用指定顏色，否則黃紅相間
                 ctx.fillStyle = carColor;
                 ctx.shadowColor = carColor;
                 ctx.shadowBlur = 5 + Math.sin(time * 0.005) * 3; // 呼吸燈特效
