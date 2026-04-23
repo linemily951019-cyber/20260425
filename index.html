@@ -147,9 +147,9 @@
         }
     });
 
-    // 氣球資料 (自訂色系 - 降低明度與彩度)
+    // 氣球資料 (自訂色系 - 配合傍晚遊樂園的復古暖色調與紫藍色系)
     const customColors = [
-        '#204950', '#586878', '#526b55', '#8e8496', '#b09c9c'
+        '#8c405a', '#c58940', '#59385c', '#4a5a7b', '#b86450'
     ];
     const balloons = [];
     for (let i = 0; i < 60; i++) { // 增加數量至 60 顆
@@ -230,6 +230,9 @@
                 activePoppedBalloon.isPopped = false; // 恢復氣球
                 activePoppedBalloon = null;
             }
+            
+            // 清空 iframe 的 src，藉此停止內部的聲音與影片播放
+            document.getElementById('contentFrame').src = 'about:blank';
         }, 380); // 等待動畫快結束時隱藏
     }
 
