@@ -200,7 +200,19 @@
     balloons.sort((a, b) => (a.hasOutline === b.hasOutline) ? 0 : a.hasOutline ? 1 : -1);
 
     // 依據從左至右、從上往下排序有外框的氣球，並賦予指定文字
-    const labels = ["20260224", "20260303", "20260303_2", "20260310", "20260310_2", "20260317", "20260324", "20260407", "20260409", "20260421"];
+    // 將陣列改為物件，方便同時管理資料夾路徑(id)與要顯示在氣球上的自訂文字
+    const labelsData = [
+        { id: "20260224", line1: "律動多邊形", line2: "week 1" },
+        { id: "20260303", line1: "笑臉嘻嘻", line2: "week 2-1" },
+        { id: "20260303_2", line1: "跳舞的魚", line2: "week 2-2" },
+        { id: "20260310", line1: "滑鼠繪畫畫", line2: "week 3-1" },
+        { id: "20260310_2", line1: "彩虹圓點陣", line2: "week 3-2" },
+        { id: "20260317", line1: "互動文字牆", line2: "week 4" },
+        { id: "20260324", line1: "教科水族館", line2: "week 5" },
+        { id: "20260407", line1: "電流急急棒", line2: "week 7" },
+        { id: "20260409", line1: "顏色獵人", line2: "week 8" },
+        { id: "20260421", line1: "馬賽克拍貼", line2: "week 9" }
+    ];
     outlinedBalloons.sort((a, b) => {
         let xDiff = a.xOffset - b.xOffset;
         // 如果兩顆氣球在 X 軸位置相當接近 (視為同一排)，則比較 Y 軸(從上往下)
@@ -211,7 +223,14 @@
         return xDiff;
     });
     outlinedBalloons.forEach((b, index) => {
-        b.label = labels[index];
+        b.label = labelsData[index].id;
+        b.line1 = labelsData[index].line1;
+        b.line2 = labelsData[index].line2;
+        
+        // 建立圖片物件，準備載入對應資料夾內的縮圖 (請確保資料夾內有 preview.png)
+        b.img = new Image();
+        b.img.src = './' + b.label + '/preview.png';
+        b.img.onload = () => { b.imgLoaded = true; };
     });
 
     // 處理點擊氣球與彈出視窗的邏輯
@@ -496,24 +515,43 @@
                 ctx.lineWidth = 0.3; // 把白框改細
                 ctx.stroke();
 
-                // 在氣球內部畫上像素風的文字
+                // 若圖片已載入，則將縮圖畫在氣球內部並裁切成圓形
+                if (b.imgLoaded) {
+                    ctx.save();
+                    ctx.beginPath();
+                    // 設定圓形裁切區域 (稍微比氣球小一點點，保留氣球底色邊框)
+                    ctx.arc(bx, by, b.size * 0.85, 0, Math.PI * 2);
+                    ctx.clip();
+                    ctx.drawImage(b.img, bx - b.size * 0.85, by - b.size * 0.85, b.size * 1.7, b.size * 1.7);
+                    ctx.restore();
+                }
+
+                // 在氣球內部畫上文字 (疊加在圖片或底色上)
                 ctx.fillStyle = "#FFFFFF";
-                ctx.font = 'bold 3px monospace'; // 使用等寬字體製造微像素感
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 
-                // 將長字串拆兩行顯示，以符合氣球的圓形範圍
-                let part1 = b.label.substring(0, 4); // "2026"
-                let part2 = b.label.substring(4);    // "0303_2" 等
-                ctx.fillText(part1, bx, by - 1.5, b.size * 1.6);
-                ctx.fillText(part2, bx, by + 1.5, b.size * 1.6);
+                // 加入微小陰影，確保文字在任何底色或圖片上都能看清楚
+                ctx.shadowColor = "rgba(0, 0, 0, 0.7)";
+                ctx.shadowBlur = 3;
+
+                // 繪製第一行與第二行文字
+                ctx.font = 'bold 2.5px sans-serif'; 
+                ctx.fillText(b.line1, bx, by - 1.2, b.size * 1.7);
+                
+                ctx.font = 'bold 2px sans-serif'; 
+                ctx.fillText(b.line2, bx, by + 1.8, b.size * 1.7);
+
+                ctx.shadowBlur = 0; // 重置陰影避免影響其他繪圖
             }
 
-            // 氣球上的微小反光亮點 (弧形點綴增加立體感)
-            ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
-            ctx.beginPath();
-            ctx.arc(bx - b.size * 0.3, by - b.size * 0.3, b.size * 0.25, 0, Math.PI * 2);
-            ctx.fill();
+            // 氣球上的微小反光亮點 (只有沒有外框的氣球才顯示反光)
+            if (!b.hasOutline) {
+                ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+                ctx.beginPath();
+                ctx.arc(bx - b.size * 0.3, by - b.size * 0.3, b.size * 0.25, 0, Math.PI * 2);
+                ctx.fill();
+            }
         });
 
         // 如果滑鼠停留在可點擊氣球上，切換游標為手指
