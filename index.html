@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小人與馬卡龍氣球</title>
+    <title>期中報告</title>
     <style>
         body, html {
             margin: 0;
@@ -98,6 +98,64 @@
             height: 100%;
             border: none;
         }
+        /* 簡短心得內容樣式 */
+        .text-container {
+            padding: 60px 40px 40px;
+            height: 100%;
+            box-sizing: border-box;
+            overflow-y: auto;
+            line-height: 1.8;
+            font-size: 18px;
+            font-family: sans-serif;
+            color: #333;
+        }
+        .text-container h2 {
+            font-size: 28px;
+            color: #4a5a7b;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        /* 新增：馬戲團內部全螢幕彈窗 */
+        .modal-fullscreen {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: #1a0b1c; /* 內部暗紫紅色調 */
+            z-index: 2000;
+            animation: fadeIn 0.4s ease;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .modal-fullscreen.closing {
+            animation: fadeOut 0.4s ease forwards;
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .pixel-dialog {
+            position: absolute;
+            top: 25%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #fff;
+            color: #000;
+            padding: 15px 25px;
+            border: 4px solid #000;
+            border-radius: 8px;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+            font-size: 24px;
+            box-shadow: 4px 4px 0 rgba(0,0,0,0.5);
+            text-align: center;
+            z-index: 2001;
+            /* 像素風對話框小尾巴 */
+            clip-path: polygon(0% 0%, 100% 0%, 100% calc(100% - 10px), 60% calc(100% - 10px), 50% 100%, 45% calc(100% - 10px), 0% calc(100% - 10px));
+            padding-bottom: 25px; /* 留白給下方的尾巴 */
+        }
     </style>
 </head>
 <body>
@@ -116,6 +174,24 @@
     <div class="close-btn" id="closeFerrisModal">✖</div>
     <!-- 網址後方加上 ?view 可以隱藏 HackMD 的工具列，呈現乾淨的閱讀模式 -->
     <iframe id="ferrisFrame" src="https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/BkcUYXI5-l?view"></iframe>
+</div>
+
+<!-- 新增：純文字心得的左側彈出視窗 -->
+<div id="textModal" class="modal-left">
+    <div class="close-btn" id="closeTextModal">✖</div>
+    <div class="text-container">
+        <h2>期中簡短心得</h2>
+        <p>本網頁以互動式作品集為核心，運用 p5.js 的 vertex 與 class 物件導向，模擬動態的視覺特效，為靜態作品增加動態感。<br><br>
+        設計上採用 Iframe 整合各週成果，提升了使用者體驗，並系統化呈現。<br><br>
+        透過這次實作，我將程式與美學結合，深化了對數位媒體開發的理解與應用能力。</p>
+    </div>
+</div>
+
+<!-- 新增：馬戲團內部畫面 -->
+<div id="circusInside" class="modal-fullscreen">
+    <div class="close-btn" id="closeCircusBtn" style="top: 20px; right: 30px; width: 40px; height: 40px; font-size: 24px;">✖</div>
+    <canvas id="circusCanvas"></canvas>
+    <div id="clownDialog" class="pixel-dialog">這邊什麼都沒有，請你離開</div>
 </div>
 
 <script>
@@ -273,8 +349,9 @@
         1: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/HyW5mwkjWl?view", text: "week 5 筆記" },
         2: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/BkTisRZnZl?view", text: "week 7 課堂筆記" },
         3: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/BJapeBv6Wl?view", text: "week 7 課後筆記" },
-        4: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/SySVpSV6be?view", text: "week 9 課後筆記" },
-        5: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/ry5UFBLTZl?view", text: "期中作品筆記", color: '#4a5a7b' } // 加上復古藍色
+        4: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/SySVpSV6be?view", text: "week 9 筆記" },
+        5: { url: "https://hackmd.io/@SKhfTWdyTDqW_5zqmDgQWQ/ry5UFBLTZl?view", text: "期中作品筆記", color: '#4a5a7b' }, // 加上復古藍色
+        6: { type: "text", text: "期中簡短心得", color: '#b86450' } // 新增：心得車廂 (復古紅)
     };
 
     // 處理點擊氣球與彈出視窗的邏輯
@@ -308,10 +385,189 @@
         }, 380);
     }
 
+    // 新增：關閉純文字視窗的邏輯
+    function closeTextModal() {
+        const modal = document.getElementById('textModal');
+        if (modal.classList.contains('closing')) return;
+        modal.classList.add('closing');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.classList.remove('closing');
+        }, 380);
+    }
+
+    // === 新增：馬戲團內部畫面與小丑繪製邏輯 ===
+    const circusCanvas = document.getElementById('circusCanvas');
+    const circusCtx = circusCanvas.getContext('2d');
+    let circusAnimId = null;
+
+    function resizeCircus() {
+        circusCanvas.width = window.innerWidth;
+        circusCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCircus);
+    resizeCircus();
+
+    function drawCircus(time) {
+        const c_cw = circusCanvas.width / PIXEL_SCALE;
+        const c_ch = circusCanvas.height / PIXEL_SCALE;
+        
+        circusCtx.clearRect(0, 0, circusCanvas.width, circusCanvas.height);
+        circusCtx.save();
+        circusCtx.scale(PIXEL_SCALE, PIXEL_SCALE);
+
+        // 背景牆壁
+        circusCtx.fillStyle = '#110b19'; 
+        circusCtx.fillRect(0, 0, c_cw, c_ch);
+
+        // 舞台布幕
+        circusCtx.fillStyle = '#803241';
+        circusCtx.fillRect(0, 0, c_cw, c_ch * 0.35);
+        for (let i = 0; i < c_cw; i += 12) {
+            circusCtx.fillStyle = (i / 12) % 2 === 0 ? '#803241' : '#552233';
+            circusCtx.fillRect(i, 0, 12, c_ch * 0.35 + 4);
+            circusCtx.beginPath();
+            circusCtx.arc(i + 6, c_ch * 0.35 + 4, 6, 0, Math.PI);
+            circusCtx.fill();
+        }
+
+        // 舞台地面
+        const stageY = c_ch * 0.7;
+        circusCtx.fillStyle = '#2a1a2e';
+        circusCtx.fillRect(0, stageY, c_cw, c_ch - stageY);
+        circusCtx.fillStyle = '#3a2040';
+        circusCtx.fillRect(0, stageY, c_cw, 2);
+
+        // 舞台前方的腳燈 (Footlights)
+        for (let i = 10; i < c_cw; i += 40) {
+            circusCtx.fillStyle = '#110b19'; // 燈座
+            circusCtx.fillRect(i, stageY - 2, 6, 3);
+            circusCtx.fillStyle = '#ffcc00'; // 燈泡
+            circusCtx.fillRect(i + 2, stageY - 3, 2, 1);
+            circusCtx.fillStyle = 'rgba(255, 240, 180, 0.15)'; // 光暈
+            circusCtx.beginPath();
+            circusCtx.arc(i + 3, stageY - 3, 12, 0, Math.PI, true);
+            circusCtx.fill();
+        }
+
+        // 聚光燈
+        circusCtx.fillStyle = 'rgba(255, 240, 180, 0.15)';
+        circusCtx.beginPath();
+        circusCtx.moveTo(c_cw / 2 - 15, 0);
+        circusCtx.lineTo(c_cw / 2 + 15, 0);
+        circusCtx.lineTo(c_cw / 2 + 45, stageY);
+        circusCtx.lineTo(c_cw / 2 - 45, stageY);
+        circusCtx.fill();
+        circusCtx.fillStyle = 'rgba(255, 240, 180, 0.2)';
+        circusCtx.beginPath();
+        circusCtx.ellipse(c_cw / 2, stageY, 45, 6, 0, 0, Math.PI * 2);
+        circusCtx.fill();
+
+        // 坐在舞台上的小丑
+        const clownX = c_cw / 2;
+        const clownY = stageY - 2; // 下移一點確保穩坐地上
+
+        // 1. 手臂與手套
+        circusCtx.fillStyle = '#9a8246'; // 衣服暗部
+        circusCtx.fillRect(clownX - 14, clownY - 18, 5, 10);
+        circusCtx.fillRect(clownX + 9, clownY - 18, 5, 10);
+        circusCtx.fillStyle = '#d9d2c5'; // 白手套
+        circusCtx.fillRect(clownX - 16, clownY - 8, 7, 6);
+        circusCtx.fillRect(clownX + 9, clownY - 8, 7, 6);
+
+        // 2. 身體 - 先畫，往下延伸被靜止的褲子遮住，避免斷層
+        circusCtx.fillStyle = '#c4a747'; // 黃色衣服
+        circusCtx.fillRect(clownX - 10, clownY - 20, 20, 18);
+        circusCtx.fillStyle = '#4a5a7b'; // 衣服上的彩球鈕扣
+        circusCtx.fillRect(clownX - 2, clownY - 16, 4, 4);
+        circusCtx.fillStyle = '#803241';
+        circusCtx.fillRect(clownX - 2, clownY - 10, 4, 4);
+
+        // 3. 褲子 - 畫在衣服上方完美遮蓋斷層
+        circusCtx.fillStyle = '#4a5a7b'; // 藍色蓬蓬褲
+        circusCtx.beginPath();
+        circusCtx.arc(clownX - 5, clownY - 4, 8, 0, Math.PI * 2);
+        circusCtx.arc(clownX + 5, clownY - 4, 8, 0, Math.PI * 2);
+        circusCtx.fill();
+
+        // 4. 鞋子
+        circusCtx.fillStyle = '#5c3a41'; // 大紅鞋
+        circusCtx.fillRect(clownX - 15, clownY + 2, 10, 5); // 左
+        circusCtx.fillRect(clownX + 5, clownY + 2, 10, 5);  // 右
+
+        // 5. 荷葉邊領圈
+        circusCtx.fillStyle = '#d9d2c5';
+        for (let i = -1.5; i <= 1.5; i++) {
+            circusCtx.beginPath();
+            circusCtx.arc(clownX + i * 6, clownY - 22, 6, 0, Math.PI * 2);
+            circusCtx.fill();
+        }
+
+        // 6. 頭部與臉妝
+        const headY = clownY - 30;
+        circusCtx.fillStyle = '#8c405a'; // 紅色爆炸頭彩髮
+        circusCtx.beginPath();
+        circusCtx.arc(clownX - 8, headY + 3, 7, 0, Math.PI * 2);
+        circusCtx.arc(clownX + 8, headY + 3, 7, 0, Math.PI * 2);
+        circusCtx.fill();
+
+        circusCtx.fillStyle = '#e6e0d3'; // 白臉底
+        circusCtx.fillRect(clownX - 7, headY - 6, 14, 13);
+        
+        circusCtx.fillStyle = '#000000'; // 眼睛
+        circusCtx.fillRect(clownX - 4, headY - 2, 2, 2);
+        circusCtx.fillRect(clownX + 2, headY - 2, 2, 2);
+        circusCtx.fillStyle = '#4a5a7b'; // 藍色十字眼妝
+        circusCtx.fillRect(clownX - 4, headY - 5, 2, 2); circusCtx.fillRect(clownX + 2, headY - 5, 2, 2);
+        circusCtx.fillRect(clownX - 4, headY + 1, 2, 2); circusCtx.fillRect(clownX + 2, headY + 1, 2, 2);
+
+        circusCtx.fillStyle = '#803241'; // 大嘴巴臭臉
+        circusCtx.fillRect(clownX - 4, headY + 5, 8, 2);
+        circusCtx.fillRect(clownX - 5, headY + 6, 2, 2); circusCtx.fillRect(clownX + 3, headY + 6, 2, 2);
+
+        circusCtx.fillStyle = '#a34141'; // 暗紅鼻子
+        circusCtx.beginPath();
+        circusCtx.arc(clownX, headY + 2, 3, 0, Math.PI * 2); circusCtx.fill();
+
+        circusCtx.fillStyle = '#4a5a7b'; // 小尖帽
+        circusCtx.beginPath(); circusCtx.moveTo(clownX - 4, headY - 6); circusCtx.lineTo(clownX + 4, headY - 6); circusCtx.lineTo(clownX, headY - 16); circusCtx.fill();
+        circusCtx.fillStyle = '#c4a747'; // 帽子毛球
+        circusCtx.beginPath(); circusCtx.arc(clownX, headY - 17, 3, 0, Math.PI * 2); circusCtx.fill();
+
+        circusCtx.restore();
+        circusAnimId = requestAnimationFrame(drawCircus);
+    }
+
+    function openCircusModal() {
+        if (document.getElementById('iframeModal').style.display === 'block') closeIframeModal();
+        if (document.getElementById('ferrisModal').style.display === 'block') closeFerrisModal();
+        if (document.getElementById('textModal').style.display === 'block') closeTextModal();
+        
+        const modal = document.getElementById('circusInside');
+        modal.style.display = 'block';
+        if (!circusAnimId) circusAnimId = requestAnimationFrame(drawCircus);
+    }
+
+    function closeCircusModal() {
+        const modal = document.getElementById('circusInside');
+        if (modal.classList.contains('closing')) return;
+        modal.classList.add('closing');
+        setTimeout(() => {
+            modal.style.display = 'none';
+            modal.classList.remove('closing');
+            if (circusAnimId) {
+                cancelAnimationFrame(circusAnimId);
+                circusAnimId = null;
+            }
+        }, 380);
+    }
+
     canvas.addEventListener('click', (e) => {
         // 如果視窗正在播放關閉動畫中，暫時不處理點擊事件
         if (document.getElementById('iframeModal').classList.contains('closing')) return;
         if (document.getElementById('ferrisModal').classList.contains('closing')) return;
+        if (document.getElementById('textModal').classList.contains('closing')) return;
+        if (document.getElementById('circusInside').classList.contains('closing')) return;
 
         const mx = e.clientX / PIXEL_SCALE;
         const my = e.clientY / PIXEL_SCALE;
@@ -323,11 +579,28 @@
             if (car.x && Math.hypot(mx - car.x, my - car.y) <= 4) {
                 if (activeBalloon) closeIframeModal(); // 若右邊開著則先關閉
                 
-                // 更新 iframe 的 src 並顯示視窗
-                document.getElementById('ferrisFrame').src = car.url;
-                document.getElementById('ferrisModal').style.display = 'block';
+                if (car.type === "text") {
+                    if (document.getElementById('ferrisModal').style.display === 'block') closeFerrisModal();
+                    document.getElementById('textModal').style.display = 'block';
+                } else {
+                    if (document.getElementById('textModal').style.display === 'block') closeTextModal();
+                    // 更新 iframe 的 src 並顯示視窗
+                    document.getElementById('ferrisFrame').src = car.url;
+                    document.getElementById('ferrisModal').style.display = 'block';
+                }
                 return; // 點到車廂就結束判斷
             }
+        }
+
+        // 3. 檢查是否點擊帳篷入口
+        const groundY = ch * 0.75;
+        const tentX = Math.floor(cw * 0.42);
+        const tentY = Math.floor(groundY - 6);
+        const doorX = tentX - 4, doorY = tentY + 8;
+        const doorW = 8, doorH = 10;
+        if (mx >= doorX && mx <= doorX + doorW && my >= doorY && my <= doorY + doorH) {
+            openCircusModal();
+            return;
         }
 
         let clickedBalloon = null;
@@ -348,6 +621,9 @@
             if (document.getElementById('ferrisModal').style.display === 'block') {
                 closeFerrisModal(); // 若左邊開著則先關閉
             }
+            if (document.getElementById('textModal').style.display === 'block') {
+                closeTextModal(); // 若左邊開著則先關閉
+            }
 
             if (!activeBalloon) {
                 // 視窗未開啟時，顯示視窗 (滑入動畫)
@@ -367,6 +643,9 @@
             }
             if (document.getElementById('ferrisModal').style.display === 'block') {
                 closeFerrisModal();
+            }
+            if (document.getElementById('textModal').style.display === 'block') {
+                closeTextModal();
             }
         }
     });
@@ -730,6 +1009,13 @@
         ctx.fillStyle = '#110b19';
         ctx.fillRect(tentX - 4, tentY + 8, 8, 10);
 
+        // 檢查滑鼠是否懸停在帳篷入口
+        const mScaleX = mouseX / PIXEL_SCALE;
+        const mScaleY = mouseY / PIXEL_SCALE;
+        if (mScaleX >= tentX - 4 && mScaleX <= tentX + 4 && mScaleY >= tentY + 8 && mScaleY <= tentY + 18) {
+            isHoveringAny = true;
+        }
+
         // 如果滑鼠停留在可點擊氣球或摩天輪特殊車廂上，切換游標為手指
         canvas.style.cursor = isHoveringAny ? 'pointer' : 'default';
 
@@ -781,6 +1067,8 @@
     // 關閉視窗的邏輯
     document.getElementById('closeModal').addEventListener('click', closeIframeModal);
     document.getElementById('closeFerrisModal').addEventListener('click', closeFerrisModal);
+    document.getElementById('closeTextModal').addEventListener('click', closeTextModal);
+    document.getElementById('closeCircusBtn').addEventListener('click', closeCircusModal);
 
 </script>
 </body>
