@@ -6,15 +6,37 @@ let currentLevel = 1; // 記錄目前的關卡數
 let obstacles = []; // 儲存障礙物的陣列
 let spotlightRadius = 150; // 探照燈的初始半徑
 let totalTime = 0; // 記錄總遊玩時間
+let bubbles = []; // 儲存背景泡泡特效
+let seaweeds = []; // 儲存底部海草裝飾
 
 function setup() {
   // 改為全螢幕
   createCanvas(windowWidth, windowHeight);
+  
+  // 初始化背景的泡泡
+  for(let i = 0; i < 50; i++) {
+    bubbles.push({x: random(width), y: random(height), size: random(3, 12), speed: random(0.5, 2)});
+  }
+  initSeaweeds();
   generatePath();
+}
+
+// 獨立產生海草的函式，方便重新計算
+function initSeaweeds() {
+  seaweeds = [];
+  for (let i = 0; i < 40; i++) {
+    seaweeds.push({
+      x: random(width),
+      h: random(80, 220), // 隨機海草高度
+      c: color(random(10, 40), random(80, 150), random(40, 80), 200), // 深淺不一的海草綠色
+      phase: random(TWO_PI) // 隨機搖擺初始相位
+    });
+  }
 }
 
 function windowResized() {
   resizeCanvas(windowWidth, windowHeight);
+  initSeaweeds(); // 視窗縮放時重新分佈海草
   if (gameState === 'START') {
     generatePath();
   }
@@ -38,8 +60,8 @@ function generatePath() {
       currentY = constrain(currentY, 100, height - 100); 
     }
     
-    // 根據關卡調整難度，大幅縮小上下軌道間距 (軌道變細)
-    let gap = random(45 - currentLevel * 5, 70 - currentLevel * 10);
+    // 根據關卡調整難度，給予潛水員通過的空間
+    let gap = random(80 - currentLevel * 5, 130 - currentLevel * 10);
     
     topPoints.push(createVector(currentX, currentY));
     bottomPoints.push(createVector(currentX, currentY + gap));
@@ -49,7 +71,7 @@ function generatePath() {
 
   // 產生障礙物 (從第 2 關開始)
   if (currentLevel >= 2) {
-    let numObstacles = currentLevel == 2 ? 3 : 5; // 增加障礙物的數量
+    let numObstacles = currentLevel == 2 ? 2 : 3; // 減少魚的數量，降低最後一關的密集度
     let step = (NUM_POINTS - 2) / numObstacles;
     for (let i = 0; i < numObstacles; i++) {
       let idx = floor(1 + i * step); // 將障礙物更均勻地分散配置在軌道的不同區段
@@ -60,9 +82,9 @@ function generatePath() {
       obstacles.push({
         x: midX,
         y: (midTopY + midBottomY) / 2, // 初始位置在上下通道的正中間
-        minY: midTopY - 45, // 上界 (超出軌道上邊距 30)
-        maxY: midBottomY + 45, // 下界 (超出軌道下邊距 30)
-        size: 30, // 增大障礙物大小為 30
+        minY: midTopY - 15, // 上界 
+        maxY: midBottomY + 15, // 下界
+        size: 40, // 魚的大小
         speed: (1 + currentLevel * 0.5) * (random() > 0.5 ? 1 : -1) // 降低移動速度
       });
     }
@@ -70,11 +92,18 @@ function generatePath() {
 }
 
 function draw() {
-  // 需求：背景為深色
-  background(30);
+  // 繪製海底漸層背景
+  for (let y = 0; y < height; y++) {
+    let inter = map(y, 0, height, 0, 1);
+    let c = lerpColor(color(0, 105, 148), color(0, 15, 30), inter);
+    stroke(c);
+    line(0, y, width, y);
+  }
+  drawBubbles(); // 繪製背景漂浮的泡泡
 
   if (gameState === 'START') {
-    drawPath();
+    drawCave();
+    drawSeaweeds();
     drawStartZone();
     drawEndZone();
     updateAndDrawObstacles();
@@ -85,26 +114,27 @@ function draw() {
     textSize(24);
     textAlign(CENTER, CENTER);
     if (currentLevel === 3) {
-      text("第 3 關 (黑暗探照燈模式) - 請點擊左側綠色按鈕開始遊戲", width / 2, 50);
+      text("第 3 關 (深海探照燈模式) - 請點擊左側發光處開始下潛", width / 2, 50);
     } else {
-      text("第 " + currentLevel + " 關 - 請點擊左側綠色按鈕開始遊戲", width / 2, 50);
+      text("第 " + currentLevel + " 關 - 請點擊左側發光處開始下潛", width / 2, 50);
     }
     
     cursor(ARROW);
   } 
   else if (gameState === 'PLAYING') {
     totalTime += deltaTime; // 只有在遊玩狀態下才累加時間
-    drawPath();
+    drawCave();
+    drawSeaweeds();
     drawStartZone();
     drawEndZone();
     updateAndDrawObstacles();
     
     // 新增第三關變化：探照燈/視野限制模式
     if (currentLevel === 3) {
-      spotlightRadius -= 0.05; // 隨時間慢慢縮小探照燈範圍 (調慢縮小速度)
-      spotlightRadius = max(spotlightRadius, 30); // 限制最小視野半徑為 30
+      spotlightRadius -= 0.02; // 再次調慢縮小速度，降低難度
+      spotlightRadius = max(spotlightRadius, 70); // 增大最小視野半徑，確保玩家還能看見周圍
       
-      fill(15, 15, 20, 250); // 幾乎全黑的遮罩
+      fill(0, 10, 25, 252); // 深海暗藍色遮罩
       noStroke();
       beginShape();
       vertex(0, 0); // 外圍畫滿全螢幕 (順時針)
@@ -121,22 +151,20 @@ function draw() {
       endShape(CLOSE);
     }
 
-    // 隱藏原始鼠標，繪製一個發光的電流點作為玩家判斷點
+    // 隱藏原始鼠標，繪製潛水員作為玩家
     noCursor();
-    fill(255, 255, 0);
-    noStroke();
-    circle(mouseX, mouseY, 8);
+    drawDiver(mouseX, mouseY);
     
     checkCollision();
     drawTimer(); // 顯示計時器
   } 
   else if (gameState === 'GAMEOVER') {
     cursor(ARROW);
-    background(220, 100, 100); 
+    background(20, 50, 80, 200); // 失敗呈現沉沒暗藍色
     fill(255);
     textSize(48);
     textAlign(CENTER, CENTER);
-    text("遊戲失敗！", width / 2, height / 2 - 30);
+    text("撞到礁石了！", width / 2, height / 2 - 30);
     
     // 重玩此關與從頭再來按鈕
     rectMode(CENTER);
@@ -151,13 +179,13 @@ function draw() {
   } 
   else if (gameState === 'WIN') {
     cursor(ARROW);
-    background(120, 180, 120); 
+    background(0, 150, 200, 200); // 勝利呈現海洋明亮色
     fill(255);
     textSize(48);
     textAlign(CENTER, CENTER);
     
     if (currentLevel < 3) {
-      text("恭喜過關！", width / 2, height / 2 - 30);
+      text("順利通過海溝！", width / 2, height / 2 - 30);
       textSize(24);
       text("點擊任意處進到下一關", width / 2, height / 2 + 30);
     } else {
@@ -179,79 +207,129 @@ function draw() {
   }
 }
 
-function drawPath() {
-  // 1. 繪製半透明的軌道底色（安全區）
-  fill(255, 150); 
-  noStroke(); // 取消原本的死板白框
-  
-  beginShape();
-  for (let i = 0; i < NUM_POINTS; i++) {
-    vertex(topPoints[i].x, topPoints[i].y);
-  }
-  for (let i = NUM_POINTS - 1; i >= 0; i--) {
-    vertex(bottomPoints[i].x, bottomPoints[i].y);
-  }
-  endShape(CLOSE);
-
-  // 2. 繪製上下邊緣的電流裝飾
-  for (let i = 0; i < NUM_POINTS - 1; i++) {
-    drawLightning(topPoints[i], topPoints[i+1], i);
-    drawLightning(bottomPoints[i], bottomPoints[i+1], i + NUM_POINTS);
+// 繪製背景漂浮的泡泡
+function drawBubbles() {
+  noStroke();
+  fill(255, 120);
+  for (let b of bubbles) {
+    circle(b.x, b.y, b.size);
+    if (gameState === 'PLAYING' || gameState === 'START') {
+      b.y -= b.speed;
+      b.x += sin(frameCount * 0.05 + b.y * 0.05) * 0.5; // 泡泡左右輕微搖擺
+      if (b.y < -20) b.y = height + 20; // 超出上方後從底部重生
+    }
   }
 }
 
-// 繪製電流效果的輔助函式
-function drawLightning(p1, p2, pathIndex) {
-  let segments = floor(dist(p1.x, p1.y, p2.x, p2.y) / 15); // 根據距離決定閃電折點數
-  if (segments < 1) segments = 1;
+// 繪製海底岩壁
+function drawCave() {
+  fill(25, 45, 65); // 沉穩的岩石顏色
+  stroke(15, 30, 50);
+  strokeWeight(4);
   
-  // 降低閃爍頻率：每 4 幀才更新一次形狀 (相當於 15 fps 的電流動畫，可自行調整 4 這個數字)
-  let timeStep = floor(frameCount / 4);
-  
-  // 預先計算這段電流的隨機偏移點
-  let pts = [];
-  for (let i = 1; i < segments; i++) {
-    let t = i / segments;
-    // 計算垂直於線段的法向量，讓電流自然地向兩側抖動
-    let nx = -(p2.y - p1.y);
-    let ny = (p2.x - p1.x);
-    let len = dist(0, 0, nx, ny);
-    if (len > 0) { nx /= len; ny /= len; }
-    
-    // 使用 noise 來產生隨機偏移，透過 timeStep 控制動畫頻率
-    let offset = map(noise(pathIndex * 10 + i * 0.5, timeStep * 100), 0, 1, -10, 10);
-    pts.push({
-      x: lerp(p1.x, p2.x, t) + nx * offset,
-      y: lerp(p1.y, p2.y, t) + ny * offset
-    });
+  // 上方岩壁
+  beginShape();
+  vertex(0, 0);
+  for (let i = 0; i < NUM_POINTS; i++) {
+    vertex(topPoints[i].x, topPoints[i].y);
   }
+  vertex(width, 0);
+  endShape(CLOSE);
 
-  // 畫兩層製造發光效果
-  for (let j = 0; j < 2; j++) {
-    if (j === 0) {
-      stroke(0, 200, 255, 150); // 外層淡藍色光暈
-      strokeWeight(4);
-    } else {
-      stroke(255, 255, 255); // 內層亮白色中心
-      strokeWeight(1.5);
-    }
-    noFill();
+  // 下方岩壁
+  beginShape();
+  vertex(0, height);
+  for (let i = 0; i < NUM_POINTS; i++) {
+    vertex(bottomPoints[i].x, bottomPoints[i].y);
+  }
+  vertex(width, height);
+  endShape(CLOSE);
+}
+
+// 繪製底部海草
+function drawSeaweeds() {
+  noFill();
+  strokeWeight(10);
+  strokeCap(ROUND);
+  for (let s of seaweeds) {
+    stroke(s.c);
     beginShape();
-    vertex(p1.x, p1.y);
-    for (let i = 0; i < pts.length; i++) {
-      vertex(pts[i].x, pts[i].y);
+    // 分段繪製讓海草有柔軟彎曲的質感
+    for (let i = 0; i <= s.h; i += 15) {
+      let sway = sin(frameCount * 0.02 + s.phase - i * 0.05) * 20 * (i / s.h); // 越往上方搖擺幅度越大
+      vertex(s.x + sway, height - i);
     }
-    vertex(p2.x, p2.y);
     endShape();
   }
 }
 
-function updateAndDrawObstacles() {
-  rectMode(CENTER);
-  fill(255, 100, 100); // 障礙物為紅色方塊
-  stroke(255);
-  strokeWeight(2);
+// 繪製魚 (取代原本的方塊障礙物)
+function drawFish(x, y, size, isFacingRight) {
+  push();
+  translate(x, y);
+  if (!isFacingRight) scale(-1, 1); // 根據游動方向水平翻轉
+  fill(255, 120, 50); 
+  noStroke();
+  ellipse(0, 0, size, size * 0.6); // 魚身
   
+  // 擺動的魚尾巴
+  let tailSway = sin(frameCount * 0.2) * 5;
+  triangle(-size/2, 0, -size*0.8, -size*0.4 + tailSway, -size*0.8, size*0.4 + tailSway); 
+  
+  // 魚眼
+  fill(255);
+  circle(size*0.25, -size*0.1, size*0.2); 
+  fill(0);
+  circle(size*0.25, -size*0.1, size*0.1); 
+  pop();
+}
+
+// 繪製寶藏 (取代終點標示)
+function drawTreasure(x, y, size) {
+  push();
+  translate(x, y);
+  fill(139, 69, 19); 
+  stroke(218, 165, 32); 
+  strokeWeight(2);
+  rectMode(CENTER);
+  rect(0, 0, size, size*0.6, 5); // 箱體
+  arc(0, -size*0.3, size, size*0.6, PI, TWO_PI, CHORD); // 箱蓋
+  
+  // 閃閃發光的金幣
+  fill(255, 215, 0); 
+  noStroke();
+  circle(0, -size*0.1, size*0.2);
+  circle(-size*0.2, -size*0.15, size*0.15);
+  circle(size*0.2, -size*0.15, size*0.15);
+  pop();
+}
+
+// 繪製玩家潛水員 (取代發光圓點)
+function drawDiver(x, y) {
+  push();
+  translate(x, y);
+  fill(255, 200, 100);
+  noStroke();
+  rectMode(CENTER);
+  rect(0, 0, 30, 14, 6); // 身體
+  fill(200, 240, 255);
+  stroke(50);
+  strokeWeight(2);
+  rect(8, 0, 12, 10, 4); // 潛水鏡
+  fill(200, 50, 50);
+  noStroke();
+  rect(-16, 0, 8, 16, 4); // 氧氣筒
+  
+  // 呼吸氣泡特效
+  if (frameCount % 20 < 10) {
+    fill(255, 180);
+    noStroke();
+    circle(18, -8, 5);
+  }
+  pop();
+}
+
+function updateAndDrawObstacles() {
   for (let obs of obstacles) {
     if (gameState === 'PLAYING') {
       obs.y += obs.speed;
@@ -260,19 +338,20 @@ function updateAndDrawObstacles() {
         obs.speed *= -1;
       }
     }
-    rect(obs.x, obs.y, obs.size, obs.size);
+    // 繪製游動的魚
+    let isFacingRight = obs.speed > 0;
+    drawFish(obs.x, obs.y, obs.size, isFacingRight);
   }
-  rectMode(CORNER);
 }
 
 function drawStartZone() {
   let startCenterY = (topPoints[0].y + bottomPoints[0].y) / 2;
-  fill(0, 255, 0); // 綠色
-  stroke(255);
+  fill(0, 200, 255, 100); // 半透明水藍色發光區
+  stroke(0, 255, 255);
   strokeWeight(2);
-  circle(topPoints[0].x, startCenterY, 80); // 直徑 80 的綠色圓形
+  circle(topPoints[0].x, startCenterY, 80); 
   
-  fill(0);
+  fill(255);
   noStroke();
   textSize(16);
   textAlign(CENTER, CENTER);
@@ -281,16 +360,19 @@ function drawStartZone() {
 
 function drawEndZone() {
   let endCenterY = (topPoints[NUM_POINTS - 1].y + bottomPoints[NUM_POINTS - 1].y) / 2;
-  fill(255, 0, 0); // 紅色
-  stroke(255);
+  fill(255, 215, 0, 100); // 半透明金色發光區
+  stroke(255, 215, 0);
   strokeWeight(2);
-  circle(topPoints[NUM_POINTS - 1].x, endCenterY, 80); // 直徑 80 的紅色圓形
+  circle(topPoints[NUM_POINTS - 1].x, endCenterY, 80);
+  
+  // 在終點畫上寶藏
+  drawTreasure(topPoints[NUM_POINTS - 1].x, endCenterY, 40);
   
   fill(255);
   noStroke();
-  textSize(18);
+  textSize(14);
   textAlign(CENTER, CENTER);
-  text("FINISH", topPoints[NUM_POINTS - 1].x, endCenterY);
+  text("TREASURE", topPoints[NUM_POINTS - 1].x, endCenterY + 30);
 }
 
 function mousePressed() {
@@ -343,7 +425,7 @@ function checkCollision() {
 
   let onPath = false;
 
-  // 3. 軌道出界檢查 (線性插值計算邊界)
+  // 3. 軌道出界檢查 (插值計算岩壁邊界)
   for (let i = 0; i < NUM_POINTS - 1; i++) {
     if (mouseX >= topPoints[i].x && mouseX <= topPoints[i + 1].x) {
       onPath = true;
@@ -352,17 +434,18 @@ function checkCollision() {
       let currentTopLimit = lerp(topPoints[i].y, topPoints[i + 1].y, t);
       let currentBottomLimit = lerp(bottomPoints[i].y, bottomPoints[i + 1].y, t);
       
-      if (mouseY <= currentTopLimit || mouseY >= currentBottomLimit) {
+      // 考慮到潛水員的高度，給予上下各約 7 pixel 的緩衝空間
+      if (mouseY - 7 <= currentTopLimit || mouseY + 7 >= currentBottomLimit) {
         gameState = 'GAMEOVER';
       }
       break; 
     }
   }
   
-  // 4. 障礙物碰撞檢查
+  // 4. 障礙物(魚)碰撞檢查
   for (let obs of obstacles) {
-    if (mouseX >= obs.x - obs.size / 2 && mouseX <= obs.x + obs.size / 2 &&
-        mouseY >= obs.y - obs.size / 2 && mouseY <= obs.y + obs.size / 2) {
+    // 簡單的圓形碰撞判定，給予魚和潛水員一些寬限值
+    if (dist(mouseX, mouseY, obs.x, obs.y) < obs.size / 2 + 10) {
       gameState = 'GAMEOVER';
     }
   }
